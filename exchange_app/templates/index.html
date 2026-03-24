@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>USD Exchange Rates Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Live currency dashboard</p>
+          <h1>Track USD against MXN and CAD</h1>
+          <p class="lede">Refresh the latest rates on demand and review the last 30 days in two charts and two data tables.</p>
+        </div>
+        <div class="actions">
+          <button id="refresh-button" type="button">Refresh latest rates</button>
+          <p id="status-message" class="status">Last updated {{ data.latest.fetched_at }}</p>
+        </div>
+      </section>
+
+      <section class="cards">
+        <article class="card">
+          <p class="label">USD to MXN</p>
+          <p id="usd-to-mxn" class="value">{{ "%.4f"|format(data.latest.usd_to_mxn) if data.latest.usd_to_mxn is not none else "Unavailable" }}</p>
+          <p id="mxn-date" class="meta">Rate date {{ data.latest.date or "Unavailable" }}</p>
+        </article>
+        <article class="card">
+          <p class="label">USD to CAD</p>
+          <p id="usd-to-cad" class="value">{{ "%.4f"|format(data.latest.usd_to_cad) if data.latest.usd_to_cad is not none else "Unavailable" }}</p>
+          <p id="cad-date" class="meta">Rate date {{ data.latest.date or "Unavailable" }}</p>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>USD to MXN over time</h2>
+          </div>
+          <canvas id="mxn-chart"></canvas>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>USD to CAD over time</h2>
+          </div>
+          <canvas id="cad-chart"></canvas>
+        </article>
+      </section>
+
+      <section class="grid">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>USD to MXN history</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody id="mxn-table-body"></tbody>
+            </table>
+          </div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>USD to CAD history</h2>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Rate</th>
+                </tr>
+              </thead>
+              <tbody id="cad-table-body"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const initialData = {{ data|tojson }};
+
+      const statusMessage = document.getElementById("status-message");
+      const refreshButton = document.getElementById("refresh-button");
+      const usdToMxn = document.getElementById("usd-to-mxn");
+      const usdToCad = document.getElementById("usd-to-cad");
+      const mxnDate = document.getElementById("mxn-date");
+      const cadDate = document.getElementById("cad-date");
+      const mxnTableBody = document.getElementById("mxn-table-body");
+      const cadTableBody = document.getElementById("cad-table-body");
+
+      function createLineChart(canvasId, label, color, labels, values) {
+        return new Chart(document.getElementById(canvasId), {
+          type: "line",
+          data: {
+            labels,
+            datasets: [
+              {
+                label,
+                data: values,
+                borderColor: color,
+                backgroundColor: `${color}22`,
+                fill: true,
+                tension: 0.25,
+                pointRadius: 2,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: false,
+              },
+            },
+            plugins: {
+              legend: {
+                display: false,
+              },
+            },
+          },
+        });
+      }
+
+      const mxnChart = createLineChart("mxn-chart", "USD to MXN", "#0b8f6a", initialData.chart.labels, initialData.chart.usd_to_mxn);
+      const cadChart = createLineChart("cad-chart", "USD to CAD", "#ff7a59", initialData.chart.labels, initialData.chart.usd_to_cad);
+
+      function renderTables(history) {
+        mxnTableBody.innerHTML = history.map((row) => `
+          <tr>
+            <td>${row.date}</td>
+            <td>${Number(row.usd_to_mxn).toFixed(4)}</td>
+          </tr>
+        `).join("");
+
+        cadTableBody.innerHTML = history.map((row) => `
+          <tr>
+            <td>${row.date}</td>
+            <td>${Number(row.usd_to_cad).toFixed(4)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function renderDashboard(payload) {
+        usdToMxn.textContent = payload.latest.usd_to_mxn === null ? "Unavailable" : Number(payload.latest.usd_to_mxn).toFixed(4);
+        usdToCad.textContent = payload.latest.usd_to_cad === null ? "Unavailable" : Number(payload.latest.usd_to_cad).toFixed(4);
+        mxnDate.textContent = `Rate date ${payload.latest.date || "Unavailable"}`;
+        cadDate.textContent = `Rate date ${payload.latest.date || "Unavailable"}`;
+        statusMessage.textContent = `Last updated ${payload.latest.fetched_at}`;
+
+        mxnChart.data.labels = payload.chart.labels;
+        mxnChart.data.datasets[0].data = payload.chart.usd_to_mxn;
+        mxnChart.update();
+
+        cadChart.data.labels = payload.chart.labels;
+        cadChart.data.datasets[0].data = payload.chart.usd_to_cad;
+        cadChart.update();
+
+        renderTables(payload.history);
+      }
+
+      async function refreshRates() {
+        refreshButton.disabled = true;
+        statusMessage.textContent = "Refreshing latest rates...";
+        try {
+          const response = await fetch("/api/refresh", { method: "POST" });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || "Refresh failed.");
+          }
+          renderDashboard(payload);
+        } catch (error) {
+          statusMessage.textContent = error.message;
+        } finally {
+          refreshButton.disabled = false;
+        }
+      }
+
+      refreshButton.addEventListener("click", refreshRates);
+      renderTables(initialData.history);
+    </script>
+  </body>
+</html>
