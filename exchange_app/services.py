@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime
 
 import requests
 from flask import current_app
@@ -23,10 +23,10 @@ class ExchangeRateService:
         session = app.config.get("HTTP_SESSION") or requests.Session()
         return cls(base_url=app.config["EXCHANGE_API_BASE_URL"], session=session)
 
-    def ensure_seed_data(self, days: int) -> None:
+    def ensure_seed_data(self) -> None:
         if self._has_history():
             return
-        start_date = date.today() - timedelta(days=days - 1)
+        start_date = date.today().replace(month=1, day=1)
         self._fetch_and_store_range(start_date=start_date, end_date=date.today())
 
     def refresh_latest_rates(self) -> None:
@@ -40,11 +40,11 @@ class ExchangeRateService:
             fetched_at=self._now_iso(),
         )
 
-    def build_dashboard_payload(self, days: int) -> dict:
-        rows = self._get_recent_history(days=days)
+    def build_dashboard_payload(self) -> dict:
+        rows = self._get_ytd_history()
         if not rows:
             try:
-                self.ensure_seed_data(days=days)
+                self.ensure_seed_data()
             except ExchangeRateError:
                 return {
                     "latest": {
@@ -60,7 +60,9 @@ class ExchangeRateService:
                         "usd_to_cad": [],
                     },
                 }
-            rows = self._get_recent_history(days=days)
+            rows = self._get_ytd_history()
+
+        monthly_rows = self._collapse_to_monthly(rows)
 
         latest = rows[-1] if rows else None
         return {
@@ -77,12 +79,12 @@ class ExchangeRateService:
                     "usd_to_cad": row["usd_to_cad"],
                     "fetched_at": row["fetched_at"],
                 }
-                for row in rows
+                for row in monthly_rows
             ],
             "chart": {
-                "labels": [row["rate_date"] for row in rows],
-                "usd_to_mxn": [row["usd_to_mxn"] for row in rows],
-                "usd_to_cad": [row["usd_to_cad"] for row in rows],
+                "labels": [self._format_month_label(row["rate_date"]) for row in monthly_rows],
+                "usd_to_mxn": [row["usd_to_mxn"] for row in monthly_rows],
+                "usd_to_cad": [row["usd_to_cad"] for row in monthly_rows],
             },
         }
 
@@ -133,21 +135,29 @@ class ExchangeRateService:
         )
         db.commit()
 
-    def _get_recent_history(self, days: int) -> list:
+    def _get_ytd_history(self) -> list:
+        year_start = date.today().replace(month=1, day=1).isoformat()
         rows = get_db().execute(
             """
             SELECT rate_date, usd_to_mxn, usd_to_cad, fetched_at
-            FROM (
-                SELECT rate_date, usd_to_mxn, usd_to_cad, fetched_at
-                FROM exchange_rates
-                ORDER BY rate_date DESC
-                LIMIT ?
-            )
+            FROM exchange_rates
+            WHERE rate_date >= ?
             ORDER BY rate_date ASC
             """,
-            (days,),
+            (year_start,),
         ).fetchall()
         return list(rows)
+
+    @staticmethod
+    def _collapse_to_monthly(rows: list) -> list:
+        monthly = {}
+        for row in rows:
+            monthly[row["rate_date"][:7]] = row
+        return [monthly[key] for key in sorted(monthly)]
+
+    @staticmethod
+    def _format_month_label(rate_date: str) -> str:
+        return datetime.strptime(rate_date, "%Y-%m-%d").strftime("%b %Y")
 
     @staticmethod
     def _now_iso() -> str:

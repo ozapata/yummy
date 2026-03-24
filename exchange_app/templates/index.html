@@ -16,7 +16,7 @@
         <div>
           <p class="eyebrow">Live currency dashboard</p>
           <h1>Track USD against MXN and CAD</h1>
-          <p class="lede">Refresh the latest rates on demand and review the last 30 days in two charts and two data tables.</p>
+          <p class="lede">Refresh the latest rates on demand and review monthly year-to-date exchange rates in two charts and two data tables.</p>
         </div>
         <div class="actions">
           <button id="refresh-button" type="button">Refresh latest rates</button>
@@ -40,22 +40,28 @@
       <section class="grid">
         <article class="panel">
           <div class="panel-head">
-            <h2>USD to MXN over time</h2>
+            <h2>USD to MXN by month</h2>
+            <p class="panel-copy">Current year to date</p>
           </div>
-          <canvas id="mxn-chart"></canvas>
+          <div class="chart-wrap">
+            <canvas id="mxn-chart"></canvas>
+          </div>
         </article>
         <article class="panel">
           <div class="panel-head">
-            <h2>USD to CAD over time</h2>
+            <h2>USD to CAD by month</h2>
+            <p class="panel-copy">Current year to date</p>
           </div>
-          <canvas id="cad-chart"></canvas>
+          <div class="chart-wrap">
+            <canvas id="cad-chart"></canvas>
+          </div>
         </article>
       </section>
 
       <section class="grid">
         <article class="panel">
           <div class="panel-head">
-            <h2>USD to MXN history</h2>
+            <h2>USD to MXN monthly history</h2>
           </div>
           <div class="table-wrap">
             <table>
@@ -71,7 +77,7 @@
         </article>
         <article class="panel">
           <div class="panel-head">
-            <h2>USD to CAD history</h2>
+            <h2>USD to CAD monthly history</h2>
           </div>
           <div class="table-wrap">
             <table>
@@ -128,6 +134,10 @@
             plugins: {
               legend: {
                 display: false,
+              },
+              tooltip: {
+                mode: "index",
+                intersect: false,
               },
             },
           },

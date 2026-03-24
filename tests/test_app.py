@@ -35,8 +35,9 @@ class DummySession:
         return DummyResponse(
             {
                 "rates": {
-                    "2026-03-21": {"MXN": 16.7000, "CAD": 1.3500},
-                    "2026-03-22": {"MXN": 16.7600, "CAD": 1.3520},
+                    "2026-01-31": {"MXN": 17.0100, "CAD": 1.4020},
+                    "2026-02-14": {"MXN": 16.9100, "CAD": 1.3810},
+                    "2026-02-28": {"MXN": 16.8500, "CAD": 1.3700},
                     "2026-03-23": {"MXN": 16.8123, "CAD": 1.3542},
                 }
             }
@@ -52,7 +53,7 @@ def app(tmp_path: Path):
             "TESTING": True,
             "DATABASE": database_path,
             "HTTP_SESSION": session,
-            "HISTORY_DAYS": 3,
+            "HISTORY_MONTHS": 12,
         }
     )
     app.dummy_session = session
@@ -70,6 +71,7 @@ def test_index_renders_seeded_history(client):
 
     assert response.status_code == 200
     assert "Track USD against MXN and CAD" in html
+    assert "monthly year-to-date exchange rates" in html
     assert "16.8123" in html
 
 
@@ -80,4 +82,6 @@ def test_refresh_endpoint_updates_latest_rates(client, app):
     assert response.status_code == 200
     assert payload["latest"]["usd_to_mxn"] == pytest.approx(16.8123)
     assert payload["latest"]["usd_to_cad"] == pytest.approx(1.3542)
+    assert payload["chart"]["labels"] == ["Jan 2026", "Feb 2026", "Mar 2026"]
+    assert payload["history"][1]["date"] == "2026-02-28"
     assert any("latest" in call[0] for call in app.dummy_session.calls)

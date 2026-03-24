@@ -13,7 +13,7 @@ def create_app(test_config: dict | None = None) -> Flask:
     app.config.from_mapping(
         DATABASE=Path(app.instance_path) / "exchange_rates.sqlite",
         EXCHANGE_API_BASE_URL="https://api.frankfurter.dev/v1",
-        HISTORY_DAYS=30,
+        HISTORY_MONTHS=12,
     )
 
     if test_config:
@@ -27,20 +27,20 @@ def create_app(test_config: dict | None = None) -> Flask:
         init_db()
         service = ExchangeRateService.from_app(app)
         try:
-            service.ensure_seed_data(days=app.config["HISTORY_DAYS"])
+            service.ensure_seed_data()
         except ExchangeRateError:
             pass
 
     @app.route("/")
     def index():
         service = ExchangeRateService.from_app(app)
-        payload = service.build_dashboard_payload(days=app.config["HISTORY_DAYS"])
+        payload = service.build_dashboard_payload()
         return render_template("index.html", data=payload)
 
     @app.route("/api/rates")
     def get_rates():
         service = ExchangeRateService.from_app(app)
-        return jsonify(service.build_dashboard_payload(days=app.config["HISTORY_DAYS"]))
+        return jsonify(service.build_dashboard_payload())
 
     @app.route("/api/refresh", methods=["POST"])
     def refresh_rates():
@@ -49,6 +49,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             service.refresh_latest_rates()
         except ExchangeRateError as exc:
             return jsonify({"error": str(exc)}), 502
-        return jsonify(service.build_dashboard_payload(days=app.config["HISTORY_DAYS"]))
+        return jsonify(service.build_dashboard_payload())
 
     return app
